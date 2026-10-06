@@ -28,17 +28,4 @@ Berikut adalah ringkasan fitur baru dan perubahan utama yang telah ditambahkan p
 
 ---
 
-# Progress Summary - 6 Oktober 2026
-
-## 1. Peningkatan Aplikasi Pelacakan Pelari (Web GPS)
-- **Tombol Kontrol START & FINISH:** Menambahkan fungsi tombol khusus di aplikasi pelari untuk memudahkan mereka memulai (START) dan mengakhiri tugas (FINISH) secara manual.
-- **Auto-Ping GPS:** Begitu pelari menekan START atau FINISH, sistem kini diam-diam akan menangkap lokasi GPS mereka saat itu juga dan melaporkannya ke server (single-ping otomatis), sehingga posisi keberangkatan dan kedatangan terekam sempurna.
-
-## 2. Live Tracking Map Makin Cerdas & Canggih
-- **Supabase Realtime:** Komponen Live Map kini telah di-upgrade menggunakan koneksi *real-time* Supabase (Postgres Changes). Pembaruan posisi, perpindahan marker, atau perubahan status pelari akan instan berubah di peta **tanpa perlu me-refresh halaman**.
-- **Solusi Tumpukan Koordinat (Jittering):** Memperbaiki masalah di mana marker pelari yang berada pada koordinat awal yang persis sama (di garis Start atau Checkpoint) saling menutupi. Kini titik-titik tersebut otomatis memisahkan diri dan mekar membentuk melingkar.
-- **Label Status Dinamis:** Map kini otomatis menampilkan nama pelari berikutnya yang bersiap (*Waiting Relay*) atau yang telah selesai (*Completed Leg*) lengkap dengan label informasinya.
-- **Identifikasi Kehilangan Sinyal (Stale Warning):** Peta sekarang menandai titik pelari aktif (Running) dengan warna abu-abu kemerahan jika koordinat terakhir mereka diterima lebih dari 15 menit yang lalu, sebagai peringatan dini (*early warning*) alat GPS mati atau kehabisan sinyal.
-
-## 3. Fitur Intervensi Admin (Status Override)
-- **Dropdown Status Manual:** Menambahkan opsi *dropdown* (opsi pilihan) langsung di halaman Dashboard `Runners`. Admin dan Marshal sekarang bisa mengintervensi atau mengubah status individu tiap pelari kapan saja secara instan, sangat berguna jika ada pelari yang lupa menekan tombol FINISH di garis akhir.
+*Catatan: Untuk rangkuman progres tanggal 6 Oktober 2026, silakan merujuk pada file [progress_summary 061026.md](progress_summary%20061026.md).*
