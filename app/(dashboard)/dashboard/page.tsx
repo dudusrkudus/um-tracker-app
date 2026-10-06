@@ -85,74 +85,86 @@ export default async function DashboardPage() {
   }).length
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Race Control Dashboard</h1>
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-gray-900">Race Control Dashboard</h1>
           <p className="text-xs sm:text-sm text-gray-500">{event?.name || 'No active event'}</p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 sm:p-3 pb-1">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-gray-500">Total Teams</CardTitle>
-            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            <div className="text-lg sm:text-xl font-bold">{totalTeams}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 sm:p-3 pb-1">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-gray-500">Running</CardTitle>
-            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            <div className="text-lg sm:text-xl font-bold text-blue-600">{runningTeams}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 sm:p-3 pb-1">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-gray-500">Finished</CardTitle>
-            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            <div className="text-lg sm:text-xl font-bold text-green-600">{finishedTeams}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 sm:p-3 pb-1">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-gray-500">Stale Data</CardTitle>
-            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            <div className="text-lg sm:text-xl font-bold flex items-baseline gap-1.5 text-yellow-600">
-              {staleTeamsCount} <span className="text-[10px] font-normal text-gray-500">&gt;{staleWarning}m</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="col-span-2 sm:col-span-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 sm:p-3 pb-1">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-gray-500">Incidents</CardTitle>
-            <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500" />
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            <div className={`text-lg sm:text-xl font-bold ${openIncidentsCount > 0 ? 'text-red-600' : ''}`}>{openIncidentsCount}</div>
-          </CardContent>
-        </Card>
+      {/* Summary Stat Bar (Ultra-Compact on Mobile, Rich on Desktop) */}
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+        {/* Total Teams */}
+        <div className="bg-white rounded-lg border border-gray-200/90 py-1.5 px-1 sm:py-3 sm:px-3 flex flex-col items-center justify-center text-center shadow-2xs">
+          <div className="flex items-center gap-1 text-gray-900">
+            <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
+            <span className="text-sm sm:text-xl font-bold">{totalTeams}</span>
+          </div>
+          <span className="text-[10px] sm:text-xs text-gray-500 font-medium mt-0.5 truncate w-full">
+            <span className="hidden sm:inline">Total </span>Teams
+          </span>
+        </div>
+
+        {/* Running */}
+        <div className="bg-white rounded-lg border border-blue-100 py-1.5 px-1 sm:py-3 sm:px-3 flex flex-col items-center justify-center text-center shadow-2xs bg-blue-50/20">
+          <div className="flex items-center gap-1 text-blue-600">
+            <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+            <span className="text-sm sm:text-xl font-bold">{runningTeams}</span>
+          </div>
+          <span className="text-[10px] sm:text-xs text-blue-600/80 font-medium mt-0.5 truncate w-full">
+            Running
+          </span>
+        </div>
+
+        {/* Finished */}
+        <div className="bg-white rounded-lg border border-green-100 py-1.5 px-1 sm:py-3 sm:px-3 flex flex-col items-center justify-center text-center shadow-2xs bg-green-50/20">
+          <div className="flex items-center gap-1 text-green-600">
+            <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 shrink-0" />
+            <span className="text-sm sm:text-xl font-bold">{finishedTeams}</span>
+          </div>
+          <span className="text-[10px] sm:text-xs text-green-600/80 font-medium mt-0.5 truncate w-full">
+            <span className="sm:hidden">Finish</span>
+            <span className="hidden sm:inline">Finished</span>
+          </span>
+        </div>
+
+        {/* Stale */}
+        <div className="bg-white rounded-lg border border-yellow-100 py-1.5 px-1 sm:py-3 sm:px-3 flex flex-col items-center justify-center text-center shadow-2xs bg-yellow-50/20">
+          <div className="flex items-center gap-1 text-yellow-600">
+            <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 shrink-0" />
+            <span className="text-sm sm:text-xl font-bold">{staleTeamsCount}</span>
+          </div>
+          <span className="text-[10px] sm:text-xs text-yellow-700/80 font-medium mt-0.5 truncate w-full">
+            Stale<span className="hidden sm:inline"> &gt;{staleWarning}m</span>
+          </span>
+        </div>
+
+        {/* Incidents */}
+        <div className={`rounded-lg border py-1.5 px-1 sm:py-3 sm:px-3 flex flex-col items-center justify-center text-center shadow-2xs transition-colors ${
+          openIncidentsCount > 0
+            ? 'bg-red-50/80 border-red-200 text-red-700'
+            : 'bg-white border-gray-200/90 text-gray-900'
+        }`}>
+          <div className="flex items-center gap-1">
+            <AlertTriangle className={`w-3 h-3 sm:w-4 sm:h-4 shrink-0 ${openIncidentsCount > 0 ? 'text-red-500' : 'text-gray-400'}`} />
+            <span className={`text-sm sm:text-xl font-bold ${openIncidentsCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{openIncidentsCount}</span>
+          </div>
+          <span className={`text-[10px] sm:text-xs font-medium mt-0.5 truncate w-full ${openIncidentsCount > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+            Insiden
+          </span>
+        </div>
       </div>
 
       {/* Operational Tables */}
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:gap-6">
         {/* Incidents Table */}
         <Card className="border-red-200">
-          <CardHeader className="bg-red-50/50 pb-4">
+          <CardHeader className="bg-red-50/50 p-3 sm:p-4 pb-2 sm:pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-red-800">Insiden Aktif</CardTitle>
+              <CardTitle className="text-sm sm:text-base text-red-800">Insiden Aktif</CardTitle>
               <Link href="/incidents">
-                <Button variant="outline" size="sm" className="h-8 text-xs bg-white">
+                <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs bg-white">
                   Lihat Semua
                 </Button>
               </Link>
