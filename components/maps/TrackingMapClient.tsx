@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 // Dynamically import TrackingMap with ssr: false so it never runs on the server
@@ -9,7 +9,7 @@ const TrackingMap = dynamic(() => import('./TrackingMap'), { ssr: false })
 
 export default function TrackingMapClient({ teams: initialTeams, checkpoints, eventId }: any) {
   const [teams, setTeams] = useState(initialTeams)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     if (!eventId) return
@@ -26,16 +26,21 @@ export default function TrackingMapClient({ teams: initialTeams, checkpoints, ev
     }
 
     // Supabase Realtime Subscription
-    const channel = supabase.channel('map-realtime')
+    const channel = supabase.channel(`map-realtime-${eventId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
         fetchTeams()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'runners' }, () => {
         fetchTeams()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'runner_locations' }, () => {
+        fetchTeams()
+      })
       .subscribe()
 
-    const interval = setInterval(fetchTeams, 15000) // Poll fallback every 15s
+    // Polling interval fallback (setiap 4 detik) untuk memastikan data selalu segar
+    const interval = setInterval(fetchTeams, 4000)
+
     return () => {
       clearInterval(interval)
       supabase.removeChannel(channel)

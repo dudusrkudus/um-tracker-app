@@ -3,12 +3,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // Helper to handle individual Telegram update
 async function processUpdate(update: any, supabase: any) {
-  const message = update.message
-  if (!message) return // We only handle messages
+  const message = update.message || update.edited_message
+  if (!message) return // Only handle message or edited_message (Live Location)
   
-  const chatId = message.chat.id
-  const telegramUserId = message.from.id
+  const chatId = message.chat?.id
+  const telegramUserId = message.from?.id
   const text = message.text || ''
+
+  if (!telegramUserId || !chatId) return
   
   // 1. Check if user is already paired (take the most recent one to prevent PGRST116 multiple rows error)
   const { data: pairedRunners } = await supabase
@@ -161,24 +163,33 @@ async function processUpdate(update: any, supabase: any) {
   // Handle Location
   if (message.location) {
     if (!runner.is_tracking_enabled) {
-      await sendTelegramMessage(chatId, 'Tracking saat ini dinonaktifkan untuk Anda.')
+      if (!update.edited_message) {
+        await sendTelegramMessage(chatId, 'Tracking saat ini dinonaktifkan untuk Anda.')
+      }
       return
     }
 
     const team = runner.teams as any
     if (team?.status !== 'running' && team?.status !== 'attention' && team?.status !== 'emergency') {
-      await sendTelegramMessage(chatId, 'Lokasi diabaikan karena status tim bukan "running".')
+      if (!update.edited_message) {
+        await sendTelegramMessage(chatId, 'Lokasi diabaikan karena status tim bukan "running".')
+      }
       return
     }
 
-    const recordedAt = new Date(message.date * 1000).toISOString()
-    const { latitude, longitude } = message.location
+    // PENTING: Untuk Live Location Telegram, update dikirim via edited_message dengan edit_date
+    const updateTimestamp = message.edit_date || message.date || Math.floor(Date.now() / 1000)
+    const recordedAt = new Date(updateTimestamp * 1000).toISOString()
+    const { latitude, longitude, horizontal_accuracy, heading } = message.location
+
     await supabase.from('runner_locations').insert({
       event_id: team.event_id,
       team_id: runner.team_id,
       runner_id: runner.id,
       latitude,
       longitude,
+      accuracy_m: horizontal_accuracy ? Math.round(horizontal_accuracy) : null,
+      heading: heading || null,
       source: 'telegram',
       recorded_at: recordedAt
     })
@@ -193,7 +204,6 @@ async function processUpdate(update: any, supabase: any) {
         last_location_source: 'telegram',
       })
       .eq('id', runner.team_id)
-      .or(`last_location_at.is.null,last_location_at.lte.${recordedAt}`)
 
     // Update runner status to running on first GPS ping
     await supabase
@@ -201,6 +211,15 @@ async function processUpdate(update: any, supabase: any) {
       .update({ status: 'running' })
       .eq('id', runner.id)
       .eq('status', 'not_started')
+
+    // Konfirmasi hanya saat pertama kali share (bukan pada setiap live update berkala)
+    if (!update.edited_message) {
+      if (message.location?.live_period) {
+        await sendTelegramMessage(chatId, `📍 Live Location aktif (${Math.round(message.location.live_period / 60)} menit)! Posisi Anda terhubung real-time ke Live Tracking Map.`)
+      } else {
+        await sendTelegramMessage(chatId, '📍 Lokasi Anda telah diterima dan diperbarui di Live Tracking Map.')
+      }
+    }
 
     // Jika ada laporan insiden terbuka yang belum memiliki lokasi untuk pelari ini, lengkapi lokasinya
     const { data: openIncident } = await supabase
