@@ -10,12 +10,15 @@ async function processUpdate(update: any, supabase: any) {
   const telegramUserId = message.from.id
   const text = message.text || ''
   
-  // 1. Check if user is already paired
-  const { data: runner } = await supabase
+  // 1. Check if user is already paired (take the most recent one to prevent PGRST116 multiple rows error)
+  const { data: pairedRunners } = await supabase
     .from('runners')
     .select('id, team_id, teams ( event_id, status ), is_tracking_enabled')
     .eq('telegram_user_id', telegramUserId)
-    .maybeSingle()
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  const runner = pairedRunners && pairedRunners.length > 0 ? pairedRunners[0] : null
 
   // Handle Pairing
   if (text.startsWith('/start ')) {
@@ -28,9 +31,20 @@ async function processUpdate(update: any, supabase: any) {
         .maybeSingle()
         
       if (pairingRunner) {
+        // Clear old pairing with this telegram account to prevent duplicate telegram_user_id
         await supabase
           .from('runners')
-          .update({ telegram_user_id: telegramUserId, telegram_chat_id: chatId, telegram_pairing_code: null })
+          .update({ telegram_user_id: null, telegram_chat_id: null })
+          .eq('telegram_user_id', telegramUserId)
+
+        await supabase
+          .from('runners')
+          .update({
+            telegram_user_id: telegramUserId,
+            telegram_chat_id: chatId,
+            telegram_pairing_code: null,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', pairingRunner.id)
         
         await sendTelegramMessage(chatId, `Berhasil terhubung! Halo ${pairingRunner.full_name}. Anda sekarang dapat mengirimkan live location atau melaporkan SOS melalui bot ini.`)
