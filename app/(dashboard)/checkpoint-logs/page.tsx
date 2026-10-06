@@ -48,7 +48,7 @@ export default async function CheckpointLogsPage() {
       .from('checkpoints')
       .select('id, code, name, sequence_no')
       .eq('event_id', event.id)
-      .eq('is_active', true)
+      .or('is_active.is.null,is_active.eq.true')
       .order('sequence_no'),
     supabase
       .from('checkpoint_logs')
