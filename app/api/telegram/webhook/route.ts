@@ -13,7 +13,7 @@ async function processUpdate(update: any, supabase: any) {
   // 1. Check if user is already paired (take the most recent one to prevent PGRST116 multiple rows error)
   const { data: pairedRunners } = await supabase
     .from('runners')
-    .select('id, team_id, teams ( event_id, status ), is_tracking_enabled')
+    .select('id, team_id, teams ( event_id, status, last_known_latitude, last_known_longitude ), is_tracking_enabled')
     .eq('telegram_user_id', telegramUserId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -112,6 +112,31 @@ async function processUpdate(update: any, supabase: any) {
       }
     }
 
+    // Cari koordinat insiden:
+    // 1. Dari attachment location jika ada
+    let incidentLat: number | null = message.location?.latitude ?? null
+    let incidentLng: number | null = message.location?.longitude ?? null
+
+    // 2. Jika tidak ada, ambil dari runner_locations tracking terbaru pelari
+    if (!incidentLat || !incidentLng) {
+      const { data: latestLoc } = await supabase
+        .from('runner_locations')
+        .select('latitude, longitude')
+        .eq('runner_id', runner.id)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (latestLoc?.latitude && latestLoc?.longitude) {
+        incidentLat = latestLoc.latitude
+        incidentLng = latestLoc.longitude
+      } else if (team?.last_known_latitude && team?.last_known_longitude) {
+        // 3. Fallback ke posisi terakhir tim dari map
+        incidentLat = team.last_known_latitude
+        incidentLng = team.last_known_longitude
+      }
+    }
+
     await supabase.from('incidents').insert({
       event_id: team.event_id,
       team_id: runner.team_id,
@@ -120,7 +145,9 @@ async function processUpdate(update: any, supabase: any) {
       severity: isSosCommand ? 'emergency' : 'medium',
       description: description,
       reported_at: new Date(message.date * 1000).toISOString(),
-      photo_url: photoUrl
+      photo_url: photoUrl,
+      latitude: incidentLat,
+      longitude: incidentLng
     });
 
     if (isSosCommand) {
@@ -175,8 +202,24 @@ async function processUpdate(update: any, supabase: any) {
       .eq('id', runner.id)
       .eq('status', 'not_started')
 
-    // We don't always reply to locations to avoid spamming the runner,
-    // but for manual /location we could. Let's stay silent for live location.
+    // Jika ada laporan insiden terbuka yang belum memiliki lokasi untuk pelari ini, lengkapi lokasinya
+    const { data: openIncident } = await supabase
+      .from('incidents')
+      .select('id')
+      .eq('runner_id', runner.id)
+      .eq('status', 'open')
+      .is('latitude', null)
+      .order('reported_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (openIncident) {
+      await supabase
+        .from('incidents')
+        .update({ latitude, longitude })
+        .eq('id', openIncident.id)
+    }
+
     return
   }
 }

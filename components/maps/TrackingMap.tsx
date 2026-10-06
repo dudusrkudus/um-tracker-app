@@ -44,6 +44,7 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const teamMarkersRef = useRef<Map<string, any>>(new Map())
+  const incidentMarkerRef = useRef<any>(null)
   const [mapError, setMapError] = useState(false)
   const [mapLoaded, setMapLoaded] = useState(false)
 
@@ -155,6 +156,10 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
 
     return () => {
       script?.removeEventListener('load', initMap)
+      if (incidentMarkerRef.current) {
+        incidentMarkerRef.current.remove()
+        incidentMarkerRef.current = null
+      }
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
@@ -289,6 +294,68 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
       }
     })
   }, [teams, mapLoaded])
+
+  // 4. Focus Incident / Coordinates from URL if present
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current) return
+    // @ts-ignore
+    const maplibregl = window.maplibregl
+    if (!maplibregl) return
+
+    const searchParams = new URLSearchParams(window.location.search)
+    const latStr = searchParams.get('lat')
+    const lngStr = searchParams.get('lng')
+    const incidentId = searchParams.get('incident')
+
+    if (latStr && lngStr) {
+      const lat = parseFloat(latStr)
+      const lng = parseFloat(lngStr)
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        if (incidentMarkerRef.current) {
+          incidentMarkerRef.current.remove()
+        }
+
+        const el = document.createElement('div')
+        el.className = 'relative flex items-center justify-center cursor-pointer'
+        el.innerHTML = `
+          <div style="position: absolute; width: 36px; height: 36px; background: rgba(239, 68, 68, 0.4); border-radius: 9999px; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="position: relative; width: 34px; height: 34px; background: #dc2626; border: 2.5px solid #ffffff; border-radius: 9999px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25); display: flex; align-items: center; justify-content: center; font-size: 16px;">
+            🚨
+          </div>
+        `
+
+        const popupHtml = `
+          <div style="padding: 6px; font-family: sans-serif; min-width: 175px;">
+            <div style="display: flex; align-items: center; gap: 4px; font-weight: 700; color: #dc2626; font-size: 13px;">
+              <span>🚨</span> <span>Lokasi Kejadian</span>
+            </div>
+            <div style="font-size: 12px; color: #374151; margin-top: 4px;">
+              Koordinat: <strong>${lat.toFixed(6)}, ${lng.toFixed(6)}</strong>
+            </div>
+            ${incidentId ? `<div style="font-size: 10px; color: #6b7280; margin-top: 3px; font-family: monospace;">Insiden ID: ${incidentId.slice(0, 8)}...</div>` : ''}
+          </div>
+        `
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([lng, lat])
+          .setPopup(new maplibregl.Popup({ offset: 20 }).setHTML(popupHtml))
+          .addTo(mapRef.current)
+
+        incidentMarkerRef.current = marker
+        marker.togglePopup()
+
+        // Smooth fly to the incident position
+        setTimeout(() => {
+          mapRef.current?.flyTo({
+            center: [lng, lat],
+            zoom: 16,
+            essential: true
+          })
+        }, 300)
+      }
+    }
+  }, [mapLoaded])
 
   return (
     <>

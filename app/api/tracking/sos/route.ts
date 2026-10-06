@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     // Verify token
     const { data: runner, error: runnerError } = await supabase
       .from('runners')
-      .select('id, team_id, teams ( event_id, status )')
+      .select('id, team_id, teams ( event_id, status, last_known_latitude, last_known_longitude )')
       .eq('tracking_token_hash', token)
       .maybeSingle()
 
@@ -26,6 +26,30 @@ export async function POST(request: Request) {
     }
 
     const team = runner.teams as any
+
+    const latitudeStr = formData.get('latitude') as string | null
+    const longitudeStr = formData.get('longitude') as string | null
+    let incidentLat: number | null = latitudeStr ? parseFloat(latitudeStr) : null
+    let incidentLng: number | null = longitudeStr ? parseFloat(longitudeStr) : null
+
+    // Fallback jika tidak dikirim via form
+    if (!incidentLat || !incidentLng) {
+      const { data: latestLoc } = await supabase
+        .from('runner_locations')
+        .select('latitude, longitude')
+        .eq('runner_id', runner.id)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (latestLoc?.latitude && latestLoc?.longitude) {
+        incidentLat = latestLoc.latitude
+        incidentLng = latestLoc.longitude
+      } else if (team?.last_known_latitude && team?.last_known_longitude) {
+        incidentLat = team.last_known_latitude
+        incidentLng = team.last_known_longitude
+      }
+    }
 
     let photoUrl = null
 
@@ -57,7 +81,9 @@ export async function POST(request: Request) {
       severity: 'emergency', // Web SOS is usually an emergency
       description: message || 'SOS darurat dikirim dari Web GPS!',
       reported_at: new Date().toISOString(),
-      photo_url: photoUrl
+      photo_url: photoUrl,
+      latitude: incidentLat,
+      longitude: incidentLng
     })
 
     if (insertError) {

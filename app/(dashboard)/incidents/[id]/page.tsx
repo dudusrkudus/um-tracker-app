@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentProfile, hasRole } from '@/lib/auth'
@@ -20,7 +21,12 @@ type IncidentDetail = {
   reported_at: string
   resolved_at: string | null
   photo_url: string | null
-  teams: { team_code: string; team_name: string } | null
+  teams: {
+    team_code: string
+    team_name: string
+    last_known_latitude?: number | null
+    last_known_longitude?: number | null
+  } | null
   runner: { full_name: string } | null
   reporter: { full_name: string; role: string } | null
   assignee: { full_name: string } | null
@@ -40,7 +46,7 @@ export default async function IncidentDetailPage(
     .select(
       `id, type, severity, status, description, latitude, longitude,
        assigned_to, resolution_notes, reported_at, resolved_at, photo_url,
-       teams ( team_code, team_name ),
+       teams ( team_code, team_name, last_known_latitude, last_known_longitude ),
        runner:runners!incidents_runner_id_fkey ( full_name ),
        reporter:profiles!incidents_reported_by_fkey ( full_name, role ),
        assignee:profiles!incidents_assigned_to_fkey ( full_name )`
@@ -132,18 +138,62 @@ export default async function IncidentDetailPage(
 
                 <span className="text-muted-foreground">Lokasi</span>
                 <div className="col-span-2">
-                  {inc.latitude && inc.longitude ? (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${inc.latitude},${inc.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      {inc.latitude}, {inc.longitude}
-                    </a>
-                  ) : (
-                    '-'
-                  )}
+                  {(() => {
+                    const lat = inc.latitude ?? inc.teams?.last_known_latitude ?? null
+                    const lng = inc.longitude ?? inc.teams?.last_known_longitude ?? null
+                    const isFromTeam = inc.latitude === null && inc.teams?.last_known_latitude != null
+
+                    if (lat !== null && lng !== null) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-mono font-medium text-xs sm:text-sm text-foreground">
+                              {lat.toFixed(6)}, {lng.toFixed(6)}
+                            </span>
+                            {isFromTeam && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Posisi Terakhir Tim
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            <Link
+                              href={`/map?lat=${lat}&lng=${lng}&incident=${inc.id}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                                <line x1="9" x2="9" y1="3" y2="18" />
+                                <line x1="15" x2="15" y1="6" y2="21" />
+                              </svg>
+                              Buka di Live Map
+                            </Link>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 border transition"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" x2="21" y1="14" y2="3" />
+                              </svg>
+                              Google Maps
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span>-</span>
+                        <span className="text-xs text-amber-600">(Koordinat GPS belum tersedia)</span>
+                      </span>
+                    )
+                  })()}
                 </div>
               </div>
             </CardContent>

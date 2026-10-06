@@ -193,6 +193,10 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       const formData = new FormData()
       formData.append('token', token)
       formData.append('message', sosMessage)
+      if (lastLocation) {
+        formData.append('latitude', lastLocation.lat.toString())
+        formData.append('longitude', lastLocation.lng.toString())
+      }
       if (sosPhoto) {
         formData.append('photo', sosPhoto)
       }
