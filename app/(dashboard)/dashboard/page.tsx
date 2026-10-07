@@ -185,7 +185,7 @@ export default async function DashboardPage() {
                   {incidents?.map((inc: any) => (
                     <TableRow key={inc.id} className="hover:bg-slate-50">
                       <TableCell className="text-xs whitespace-nowrap">
-                        {new Date(inc.reported_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(inc.reported_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
                       </TableCell>
                       <TableCell>
                         <div className="font-bold text-xs">{inc.teams?.team_code || 'Unknown'}</div>
