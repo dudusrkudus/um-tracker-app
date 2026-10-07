@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Activity, AlertTriangle, Clock, MapPin, TriangleAlert } from 'lucide-react'
 import { notFound } from 'next/navigation'
+import IncidentListPublic from '@/components/incidents/IncidentListPublic'
 
 // Helper to determine freshness
 function getFreshnessBadge(lastLocationAt: string | null, staleWarning: number, staleCritical: number) {
@@ -175,49 +176,17 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
       </Card>
 
       {/* Incidents / Laporan Section */}
-      {incidents && incidents.length > 0 && (
-        <Card className="border-red-200">
-          <CardHeader className="bg-red-50/50">
-            <CardTitle className="text-red-800 flex items-center">
-              <TriangleAlert className="w-5 h-5 mr-2" />
-              Laporan / Insiden
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Pelari</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Keterangan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {incidents.map((inc: any) => (
-                  <TableRow key={inc.id}>
-                    <TableCell className="text-xs whitespace-nowrap">
-                      {new Date(inc.reported_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-xs font-semibold">{inc.runner?.full_name || '-'}</div>
-                      <div className="text-[10px] text-gray-500">{(inc.teams as any)?.team_code}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={inc.status === 'open' ? 'destructive' : 'secondary'} className="text-[10px]">
-                        {inc.status.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-600 max-w-[200px] truncate">
-                      {inc.description}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-red-200">
+        <CardHeader className="bg-red-50/50">
+          <CardTitle className="text-red-800 flex items-center">
+            <TriangleAlert className="w-5 h-5 mr-2" />
+            Laporan / Insiden
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <IncidentListPublic incidents={incidents || []} />
+        </CardContent>
+      </Card>
 
     </div>
   )

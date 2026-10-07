@@ -45,6 +45,7 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
   const mapRef = useRef<any>(null)
   const teamMarkersRef = useRef<Map<string, any>>(new Map())
   const incidentMarkerRef = useRef<any>(null)
+  const hasFitBoundsRef = useRef(false)
   const [mapError, setMapError] = useState(false)
   const [mapLoaded, setMapLoaded] = useState(false)
 
@@ -293,6 +294,24 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
         marker.setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupHtml))
       }
     })
+
+    // Fit bounds on first load with valid coordinates
+    if (!hasFitBoundsRef.current && teams.length > 0) {
+      const bounds = new maplibregl.LngLatBounds()
+      let hasValidCoords = false
+      
+      teams.forEach(t => {
+        if (t.last_known_longitude && t.last_known_latitude) {
+          bounds.extend([t.last_known_longitude, t.last_known_latitude])
+          hasValidCoords = true
+        }
+      })
+      
+      if (hasValidCoords) {
+        mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 1500 })
+        hasFitBoundsRef.current = true
+      }
+    }
   }, [teams, mapLoaded])
 
   // 4. Focus Incident / Coordinates from URL if present
