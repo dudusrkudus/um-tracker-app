@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const formData = await request.formData()
     const token = formData.get('token') as string
     const message = formData.get('message') as string
-    const photo = formData.get('photo') as File | null
+    const photos = formData.getAll('photo') as File[]
 
     if (!token) {
       return NextResponse.json({ error: 'Token is required' }, { status: 400 })
@@ -52,24 +52,33 @@ export async function POST(request: Request) {
     }
 
     let photoUrl = null
+    const uploadedUrls: string[] = []
 
     // Process photo if it exists
-    if (photo && photo.size > 0) {
-      const buffer = Buffer.from(await photo.arrayBuffer())
-      const fileName = `webgps_${runner.id}_${Date.now()}_${photo.name}`
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('incidents')
-        .upload(fileName, buffer, {
-          contentType: photo.type || 'image/jpeg'
-        })
-        
-      if (!uploadError && uploadData) {
-        const { data: publicUrlData } = supabase.storage.from('incidents').getPublicUrl(uploadData.path)
-        photoUrl = publicUrlData.publicUrl
-      } else {
-        console.error('Error uploading photo:', uploadError)
+    if (photos && photos.length > 0) {
+      for (const photo of photos) {
+        if (photo.size > 0) {
+          const buffer = Buffer.from(await photo.arrayBuffer())
+          const fileName = `webgps_${runner.id}_${Date.now()}_${photo.name}`
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('incidents')
+            .upload(fileName, buffer, {
+              contentType: photo.type || 'image/jpeg'
+            })
+            
+          if (!uploadError && uploadData) {
+            const { data: publicUrlData } = supabase.storage.from('incidents').getPublicUrl(uploadData.path)
+            uploadedUrls.push(publicUrlData.publicUrl)
+          } else {
+            console.error('Error uploading photo:', uploadError)
+          }
+        }
       }
+    }
+
+    if (uploadedUrls.length > 0) {
+      photoUrl = uploadedUrls.join(',')
     }
 
     // Insert Incident

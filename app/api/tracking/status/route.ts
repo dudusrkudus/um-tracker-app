@@ -36,6 +36,8 @@ export async function POST(req: Request) {
       throw updateError
     }
 
+    let nextRunnerToken = null
+
     // Jika status running, update team status ke running juga
     if (status === 'running') {
       await supabase
@@ -46,13 +48,14 @@ export async function POST(req: Request) {
       // Cek apakah ini pelari terakhir
       const { data: teamRunners } = await supabase
         .from('runners')
-        .select('id, relay_order, status')
+        .select('id, relay_order, status, tracking_token_hash')
         .eq('team_id', runner.team_id)
-        .order('relay_order', { ascending: false })
+        .order('relay_order', { ascending: true })
       
       if (teamRunners && teamRunners.length > 0) {
-        // Jika relay_order pelari ini adalah yang terbesar, berarti dia pelari terakhir
-        const isLastRunner = teamRunners[0].id === runner.id
+        // Cek order pelari saat ini
+        const currentRunnerIndex = teamRunners.findIndex(r => r.id === runner.id)
+        const isLastRunner = currentRunnerIndex === teamRunners.length - 1
         
         if (isLastRunner) {
           // Update pelari ini menjadi finished
@@ -60,13 +63,15 @@ export async function POST(req: Request) {
           // Update tim menjadi finished
           await supabase.from('teams').update({ status: 'finished' }).eq('id', runner.team_id)
         } else {
+          // Ada pelari selanjutnya
+          nextRunnerToken = teamRunners[currentRunnerIndex + 1].tracking_token_hash
           // Update tim menjadi waiting_relay
           await supabase.from('teams').update({ status: 'waiting_relay' }).eq('id', runner.team_id)
         }
       }
     }
 
-    return NextResponse.json({ success: true, message: `Status berhasil diubah menjadi ${status}` })
+    return NextResponse.json({ success: true, message: `Status berhasil diubah menjadi ${status}`, nextRunnerToken })
   } catch (error: any) {
     console.error('Error updating status:', error)
     return NextResponse.json(

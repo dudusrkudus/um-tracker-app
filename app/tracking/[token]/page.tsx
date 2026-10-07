@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { MapPin, Activity, AlertCircle, Battery, Send, RefreshCw, XCircle, Camera, TriangleAlert } from 'lucide-react'
+import { MapPin, Activity, AlertCircle, Battery, Send, RefreshCw, XCircle, Camera, TriangleAlert, FolderOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -12,17 +12,19 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
   const token = params.token
   
   const [isTracking, setIsTracking] = useState(false)
-  const [statusMsg, setStatusMsg] = useState('Tekan "Kirim Posisi Saya" untuk mengirimkan lokasi.')
+  const [statusMsg, setStatusMsg] = useState('Tekan "Mulai Lari (START)" untuk memulai pelacakan.')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   
+  // Runner State
+  const [runnerName, setRunnerName] = useState<string | null>(null)
+
   // SOS State
   const [isSosOpen, setIsSosOpen] = useState(false)
   const [sosMessage, setSosMessage] = useState('')
-  const [sosPhoto, setSosPhoto] = useState<File | null>(null)
+  const [sosPhotos, setSosPhotos] = useState<File[]>([])
   const [isSubmittingSos, setIsSubmittingSos] = useState(false)
 
-  
   const [lastLocation, setLastLocation] = useState<{
     lat: number;
     lng: number;
@@ -31,14 +33,32 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
   } | null>(null)
   
   const watchIdRef = useRef<number | null>(null)
+  const intervalIdRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    // Fetch Runner Info
+    const fetchRunner = async () => {
+      try {
+        const res = await fetch(`/api/tracking/runner?token=${token}`)
+        if (res.ok) {
+          const data = await res.json()
+          setRunnerName(data.runner.full_name)
+        }
+      } catch (err) {
+        console.error('Failed to fetch runner data', err)
+      }
+    }
+    fetchRunner()
+
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current)
       }
+      if (intervalIdRef.current !== null) {
+        clearInterval(intervalIdRef.current)
+      }
     }
-  }, [])
+  }, [token])
 
   const startTracking = () => {
     if (!navigator.geolocation) {
@@ -47,77 +67,38 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
     }
 
     setErrorMsg(null)
-    setStatusMsg('Meminta izin lokasi...')
+    setStatusMsg('Memulai pelacakan otomatis (interval 5 menit)...')
     setIsTracking(true)
 
+    // Kirim posisi pertama kali
+    sendSingleLocationPing().then((success) => {
+      if (success) {
+        setStatusMsg('Lokasi awal terkirim. Tracking aktif (5 menit).')
+      } else {
+        setStatusMsg('Gagal mengirim lokasi awal. Akan dicoba lagi otomatis...')
+      }
+    })
+
+    // Setup interval 5 menit
+    intervalIdRef.current = setInterval(() => {
+      setStatusMsg('Mengirim data koordinat otomatis...')
+      sendSingleLocationPing().then((success) => {
+        if (success) setStatusMsg('Lokasi otomatis terkirim.')
+        else setStatusMsg('Gagal mengirim lokasi otomatis. Menunggu interval berikutnya...')
+      })
+    }, 5 * 60 * 1000) // 5 menit
+
+    // Kita juga bisa tetap pakai watchPosition untuk update UI lokal (tidak dikirim ke server)
     watchIdRef.current = navigator.geolocation.watchPosition(
-      async (position) => {
-        const { latitude, longitude, accuracy, speed, heading } = position.coords
-        
-        // Coba baca level baterai jika API tersedia (contoh: Chrome Android)
-        let batteryLevel = null
-        try {
-          if ('getBattery' in navigator) {
-            const battery: any = await (navigator as any).getBattery()
-            batteryLevel = Math.round(battery.level * 100)
-          }
-        } catch (e) {
-          // ignore
-        }
-
-        const payload = {
-          token,
-          latitude,
-          longitude,
-          accuracyM: accuracy,
-          speedKmh: speed ? speed * 3.6 : null,
-          heading,
-          batteryLevel,
-          recordedAt: new Date(position.timestamp).toISOString()
-        }
-
-        setStatusMsg('Mengirim data koordinat...')
-
-        try {
-          const res = await fetch('/api/tracking/location', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-
-          if (!res.ok) {
-            const errBody = await res.json()
-            throw new Error(errBody.error || 'Server menolak data')
-          }
-
-          setLastLocation({
-            lat: latitude,
-            lng: longitude,
-            acc: accuracy,
-            time: new Date().toLocaleTimeString('id-ID')
-          })
-          setStatusMsg('Lokasi terkirim.')
-          setErrorMsg(null)
-        } catch (err: any) {
-          setErrorMsg(err.message || 'Gagal mengirim lokasi')
-          setStatusMsg('Gagal mengirim data. Akan dicoba lagi otomatis...')
-        }
+      (position) => {
+         // Hanya update state lokal untuk UI jika perlu, tapi karena interval sudah mengirim, 
+         // kita bisa biarkan kosong atau hapus watchPosition.
+         // Untuk hemat baterai, kita tidak perlu watchPosition jika sudah ada interval.
       },
       (error) => {
-        let msg = 'Gagal mendeteksi lokasi.'
-        if (error.code === error.PERMISSION_DENIED) msg = 'Izin akses lokasi ditolak.'
-        if (error.code === error.POSITION_UNAVAILABLE) msg = 'Informasi lokasi tidak tersedia dari perangkat.'
-        if (error.code === error.TIMEOUT) msg = 'Waktu permintaan lokasi habis (timeout).'
-        
-        setErrorMsg(msg)
-        setStatusMsg('Terjadi kesalahan.')
-        stopTracking()
+        console.warn('GPS Watch error', error)
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 30000,
-        timeout: 20000,
-      }
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
     )
   }
 
@@ -125,6 +106,10 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
+    }
+    if (intervalIdRef.current !== null) {
+      clearInterval(intervalIdRef.current)
+      intervalIdRef.current = null
     }
     setIsTracking(false)
     setStatusMsg('Tracking dihentikan.')
@@ -197,8 +182,10 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
         formData.append('latitude', lastLocation.lat.toString())
         formData.append('longitude', lastLocation.lng.toString())
       }
-      if (sosPhoto) {
-        formData.append('photo', sosPhoto)
+      if (sosPhotos.length > 0) {
+        sosPhotos.forEach((photo) => {
+          formData.append('photo', photo)
+        })
       }
 
       const res = await fetch('/api/tracking/sos', {
@@ -210,7 +197,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       
       setIsSosOpen(false)
       setSosMessage('')
-      setSosPhoto(null)
+      setSosPhotos([])
       alert('Pesan SOS berhasil dikirim!')
     } catch (err: any) {
       setErrorMsg(err.message)
@@ -243,12 +230,20 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       
       // Jika START, kirim posisi awal SETELAH status berubah (karena baru boleh mengirim lokasi jika 'running')
       if (statusToSet === 'running') {
-        setStatusMsg('Mengambil posisi awal...')
-        await sendSingleLocationPing()
+        setStatusMsg('Memulai auto-tracking...')
+        startTracking()
       }
 
-      alert(`Status berhasil diperbarui! Posisi telah dicatat.`)
+      alert(`Status berhasil diperbarui!`)
       setStatusMsg('Status berhasil diperbarui.')
+
+      // Redirect ke pelari selanjutnya jika ada
+      const resData = await res.json()
+      if (statusToSet === 'completed_leg' && resData.nextRunnerToken) {
+        setStatusMsg('Mengalihkan ke pelari selanjutnya...')
+        window.location.href = `/tracking/${resData.nextRunnerToken}`
+      }
+
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal mengubah status')
       setStatusMsg('Gagal memperbarui status.')
@@ -266,6 +261,11 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
           </CardTitle>
           <CardDescription>
             Sistem Pelacakan Lokasi Pelari
+            {runnerName && (
+              <div className="mt-2 font-bold text-lg text-slate-800">
+                {runnerName}
+              </div>
+            )}
           </CardDescription>
         </CardHeader>
         
@@ -328,7 +328,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
             <div className="grid grid-cols-2 gap-3">
               <Button 
                 onClick={() => updateStatus('running')}
-                disabled={isUpdatingStatus}
+                disabled={isUpdatingStatus || isTracking}
                 className="w-full h-12 text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700"
               >
                 Mulai Lari (START)
@@ -354,7 +354,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
                 className="w-full h-12 text-base font-bold shadow-md bg-green-600 hover:bg-green-700"
               >
                 <Send className="mr-2 h-5 w-5" />
-                Kirim Posisi Saya
+                Kirim Posisi Sekarang
               </Button>
             ) : (
               <Button 
@@ -363,7 +363,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
                 className="w-full h-12 text-base font-bold shadow-md border-slate-300 text-slate-700"
               >
                 <XCircle className="mr-2 h-5 w-5" />
-                Hentikan Kirim Posisi
+                Hentikan Tracking
               </Button>
             )}
 
@@ -409,22 +409,61 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 flex items-center space-x-1">
-                  <Camera className="h-4 w-4" /> <span>Lampirkan Foto</span>
+                  <span>Lampirkan Bantuan (Opsional)</span>
                 </label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setSosPhoto(e.target.files[0])
-                    }
-                  }}
-                  className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                />
-                {sosPhoto && (
-                  <p className="text-xs text-green-600 mt-1 font-medium">Foto dipilih: {sosPhoto.name}</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-red-300 rounded-lg bg-red-50 hover:bg-red-100 cursor-pointer transition-colors text-red-700">
+                    <Camera className="h-6 w-6 mb-1" />
+                    <span className="text-xs font-bold text-center">Buka Kamera</span>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setSosPhotos((prev) => [...prev, ...Array.from(e.target.files!)])
+                        }
+                      }}
+                    />
+                  </label>
+
+                  <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors text-slate-700">
+                    <FolderOpen className="h-6 w-6 mb-1" />
+                    <span className="text-xs font-bold text-center">Pilih Galeri/File</span>
+                    <input 
+                      type="file" 
+                      accept="image/*, application/pdf, .doc, .docx, .xls, .xlsx, .txt"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setSosPhotos((prev) => [...prev, ...Array.from(e.target.files!)])
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {sosPhotos.length > 0 && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-xs text-green-700 font-bold mb-1">File siap dikirim ({sosPhotos.length}):</p>
+                    <ul className="text-xs text-green-700 list-disc list-inside">
+                      {sosPhotos.map((f, i) => (
+                        <li key={i}>{f.name}</li>
+                      ))}
+                    </ul>
+                    <button 
+                      type="button" 
+                      onClick={() => setSosPhotos([])}
+                      className="text-xs text-red-600 mt-2 font-semibold hover:underline"
+                    >
+                      Hapus Semua
+                    </button>
+                  </div>
                 )}
               </div>
 

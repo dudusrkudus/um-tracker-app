@@ -111,10 +111,30 @@ export default async function IncidentDetailPage(
             
             {inc.photo_url && (
               <div className="border-t pt-4">
-                <span className="block text-muted-foreground mb-2">Lampiran Foto</span>
-                <div className="rounded-md overflow-hidden border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={inc.photo_url} alt="Insiden" className="w-full h-auto max-h-[400px] object-contain bg-slate-100" />
+                <span className="block text-muted-foreground mb-2">Lampiran File ({inc.photo_url.split(',').length})</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {inc.photo_url.split(',').map((url, index) => {
+                    const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)$/i) || url.includes('image')
+                    return (
+                      <div key={index} className="rounded-md overflow-hidden border bg-slate-100 flex flex-col justify-center items-center">
+                        {isImage ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={`Lampiran ${index + 1}`} className="w-full h-auto max-h-[400px] object-contain" />
+                          </a>
+                        ) : (
+                          <div className="p-8 flex flex-col items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                              Buka Dokumen {index + 1}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
