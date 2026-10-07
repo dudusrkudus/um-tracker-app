@@ -37,14 +37,14 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
   
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth') &&
-    !request.nextUrl.pathname.startsWith('/tracking') && // Public runner GPS page (token-based)
-    !request.nextUrl.pathname.startsWith('/public') && // Public viewer pages
-    !request.nextUrl.pathname.startsWith('/api') // Exclude API routes for tracking/webhook
-  ) {
+  const isProtectedRoute = 
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/teams') ||
+    request.nextUrl.pathname.startsWith('/runners') ||
+    request.nextUrl.pathname.startsWith('/incidents') ||
+    request.nextUrl.pathname.startsWith('/users');
+
+  if (!user && isProtectedRoute) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
