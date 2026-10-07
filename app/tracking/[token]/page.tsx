@@ -220,18 +220,30 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
         formData.append('latitude', lastLocation.lat.toString())
         formData.append('longitude', lastLocation.lng.toString())
       }
+      
+      // Compress photos before appending
       if (sosPhotos.length > 0) {
-        sosPhotos.forEach((photo) => {
-          formData.append('photo', photo)
-        })
+        setStatusMsg('Mengkompresi gambar...')
+        for (const photo of sosPhotos) {
+          const compressed = await compressImage(photo)
+          formData.append('photo', compressed)
+        }
       }
 
+      setStatusMsg('Mengirim laporan SOS...')
       const res = await fetch('/api/tracking/sos', {
         method: 'POST',
         body: formData
       })
 
-      if (!res.ok) throw new Error('Gagal mengirim pesan SOS.')
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Server error response:', errorText)
+        if (res.status === 413) {
+          throw new Error('Ukuran file terlalu besar. Harap kurangi jumlah atau ukuran foto.')
+        }
+        throw new Error(`Gagal mengirim pesan SOS: ${res.statusText}`)
+      }
       
       setIsSosOpen(false)
       setSosMessage('')
@@ -435,7 +447,13 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
               <button onClick={() => setIsSosOpen(false)} className="text-white/80 hover:text-white font-bold text-xl">&times;</button>
             </div>
             
-            <form onSubmit={handleSosSubmit} className="p-4 space-y-4 flex-1 flex flex-col">
+            <form onSubmit={handleSosSubmit} className="p-4 space-y-4 flex-1 flex flex-col overflow-y-auto">
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md text-sm font-semibold flex items-start">
+                  <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-slate-700">Pesan Laporan</label>
                 <textarea 
@@ -529,4 +547,66 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       )}
     </div>
   )
+}
+
+// --- IMAGE COMPRESSION HELPER ---
+const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file) // Skip non-images
+      return
+    }
+
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width *= maxHeight / height
+            height = maxHeight
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(file)
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              })
+              resolve(compressedFile)
+            } else {
+              resolve(file)
+            }
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => resolve(file)
+    }
+    reader.onerror = () => resolve(file)
+  })
 }
