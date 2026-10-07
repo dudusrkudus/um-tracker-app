@@ -96,6 +96,34 @@ export async function createRunner(prevState: any, formData: FormData) {
   return { success: true }
 }
 
+export async function updateRunner(prevState: any, formData: FormData) {
+  const profile = await getCurrentProfile()
+  if (!hasRole(profile, ADMIN_ROLES)) return { error: 'Unauthorized' }
+
+  const id = formData.get('id') as string
+  if (!id) return { error: 'Runner ID is required' }
+
+  const data = {
+    team_id: formData.get('team_id'),
+    full_name: formData.get('full_name'),
+    phone: formData.get('phone') || undefined,
+    relay_order: formData.get('relay_order'),
+    emergency_contact_name: formData.get('emergency_contact_name') || undefined,
+    emergency_contact_phone: formData.get('emergency_contact_phone') || undefined,
+    status: formData.get('status') || 'not_started',
+  }
+
+  const parsed = runnerSchema.safeParse(data)
+  if (!parsed.success) return { error: 'Data tidak valid', details: parsed.error.format() }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('runners').update(parsed.data).eq('id', id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/runners')
+  return { success: true }
+}
+
 export async function createCheckpoint(prevState: any, formData: FormData) {
   const profile = await getCurrentProfile()
   if (!hasRole(profile, ADMIN_ROLES)) return { error: 'Unauthorized' }

@@ -62,7 +62,12 @@ export default async function RunnersPage() {
                     <RunnerStatusDropdown runnerId={runner.id} currentStatus={runner.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <RunnerTokenButton runnerId={runner.id} token={runner.tracking_token_hash} />
+                    <div className="flex justify-end gap-2 items-center">
+                      <Link href={`/runners/${runner.id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                        Edit
+                      </Link>
+                      <RunnerTokenButton runnerId={runner.id} token={runner.tracking_token_hash} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
