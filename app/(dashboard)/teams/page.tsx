@@ -10,6 +10,7 @@ import {
 import { Button, buttonVariants } from '@/components/ui/button'
 import { TeamStatusDropdown } from '@/components/admin/team-status-dropdown'
 import Link from 'next/link'
+import { ExportGpsButton } from '@/components/admin/export-gps-button'
 
 export default async function TeamsPage() {
   const supabase = await createClient()
@@ -51,6 +52,7 @@ export default async function TeamsPage() {
                 <TableHead>Event</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -62,6 +64,9 @@ export default async function TeamsPage() {
                   <TableCell>{(team.categories as any)?.code}</TableCell>
                   <TableCell>
                     <TeamStatusDropdown teamId={team.id} currentStatus={team.status} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ExportGpsButton teamId={team.id} teamCode={team.team_code} />
                   </TableCell>
                 </TableRow>
               ))}
