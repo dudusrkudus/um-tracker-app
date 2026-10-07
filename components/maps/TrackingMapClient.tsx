@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 // Dynamically import TrackingMap with ssr: false so it never runs on the server
 const TrackingMap = dynamic(() => import('./TrackingMap'), { ssr: false })
 
-export default function TrackingMapClient({ teams: initialTeams, checkpoints, eventId }: any) {
+export default function TrackingMapClient({ teams: initialTeams, checkpoints, eventId, teamIds }: any) {
   const router = useRouter()
   const [teams, setTeams] = useState(initialTeams)
   const supabase = useMemo(() => createClient(), [])
@@ -18,11 +18,17 @@ export default function TrackingMapClient({ teams: initialTeams, checkpoints, ev
     if (!eventId) return
     
     const fetchTeams = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('teams')
         .select('id, team_code, status, last_known_latitude, last_known_longitude, last_location_at, runners ( full_name, relay_order, status )')
         .eq('event_id', eventId)
         
+      if (teamIds && teamIds.length > 0) {
+        query = query.in('id', teamIds)
+      }
+
+      const { data } = await query
+
       if (data) {
         setTeams(data)
       }

@@ -54,14 +54,16 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
       runners ( full_name, relay_order, status )
     `)
     .eq('event_id', eventId || '')
-    .ilike('team_code', resolvedParams.team_code) // Case-insensitive match for team_code
+    .ilike('team_code', `${resolvedParams.team_code}%`) // Match any team starting with this code
 
   if (!teams || teams.length === 0) {
     notFound() // Shows 404 if team doesn't exist
   }
 
-  const team = teams[0]
-  const teamId = team.id
+  const teamIds = teams.map(t => t.id)
+
+  // Use the first team's name for the header, or just uppercase the parameter if it's a prefix query
+  const title = teams.length === 1 ? (teams[0].team_name || teams[0].team_code) : resolvedParams.team_code
 
   // Fetch checkpoints
   const { data: checkpoints } = await supabase
@@ -69,29 +71,31 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
     .select('id, code, name, latitude, longitude')
     .eq('event_id', eventId || '')
 
-  // Fetch active incidents for this team
+  // Fetch active incidents for these teams
   const { data: incidents } = await supabase
     .from('incidents')
     .select(`
       id, type, severity, status, description, reported_at,
-      runner:runners!incidents_runner_id_fkey ( full_name )
+      runner:runners!incidents_runner_id_fkey ( full_name ),
+      teams ( team_code )
     `)
-    .eq('team_id', teamId)
+    .in('team_id', teamIds)
     .order('reported_at', { ascending: false })
 
   return (
     <div className="space-y-6">
       
       <div className="flex flex-col items-center justify-center p-4 bg-white border rounded-lg shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-800 uppercase">{team.team_name || team.team_code}</h1>
-        <p className="text-sm text-slate-500">Live Tracker & Status</p>
+        <h1 className="text-2xl font-bold text-slate-800 uppercase">{title}</h1>
+        <p className="text-sm text-slate-500">Live Tracker & Status {teams.length > 1 ? `(${teams.length} Tim)` : ''}</p>
       </div>
 
       {/* Map Section */}
       <Card>
         <CardContent className="p-0">
           <TrackingMapClient 
-            teams={teams} // Only pass this specific team
+            teams={teams} // Pass matched teams
+            teamIds={teamIds} // Ensure MapClient only fetches these teams
             checkpoints={checkpoints || []} 
             eventId={eventId}
           />
@@ -114,7 +118,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(() => {
+              {teams.map((team) => {
                 const freshness = getFreshnessBadge(
                   team.last_location_at,
                   staleWarning,
@@ -137,7 +141,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
                 }
 
                 return (
-                  <TableRow>
+                  <TableRow key={team.id}>
                     <TableCell>
                       <div className="font-bold text-xs">{activeRunnerName}</div>
                       <div className="text-[10px] text-gray-500">{team.team_code}</div>
@@ -153,7 +157,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
                         {freshness.label}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs whitespace-nowrap">
                       {team.last_location_at
                         ? new Date(team.last_location_at).toLocaleTimeString('id-ID', {
                             hour: '2-digit',
@@ -164,7 +168,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
                     </TableCell>
                   </TableRow>
                 )
-              })()}
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -195,8 +199,9 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(inc.reported_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
                     </TableCell>
-                    <TableCell className="text-xs font-semibold">
-                      {inc.runner?.full_name || '-'}
+                    <TableCell>
+                      <div className="text-xs font-semibold">{inc.runner?.full_name || '-'}</div>
+                      <div className="text-[10px] text-gray-500">{(inc.teams as any)?.team_code}</div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={inc.status === 'open' ? 'destructive' : 'secondary'} className="text-[10px]">
