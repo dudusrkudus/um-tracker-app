@@ -28,7 +28,8 @@ function getFreshnessBadge(lastLocationAt: string | null, staleWarning: number, 
   }
 }
 
-export default async function TeamPublicPage({ params }: { params: { team_code: string } }) {
+export default async function TeamPublicPage({ params }: { params: Promise<{ team_code: string }> }) {
+  const resolvedParams = await params;
   const supabase = await createClient()
 
   // Get active event
@@ -53,7 +54,7 @@ export default async function TeamPublicPage({ params }: { params: { team_code: 
       runners ( full_name, relay_order, status )
     `)
     .eq('event_id', eventId || '')
-    .ilike('team_code', params.team_code) // Case-insensitive match for team_code
+    .ilike('team_code', resolvedParams.team_code) // Case-insensitive match for team_code
 
   if (!teams || teams.length === 0) {
     notFound() // Shows 404 if team doesn't exist
