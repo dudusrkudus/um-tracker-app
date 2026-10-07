@@ -34,6 +34,26 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
   
   const watchIdRef = useRef<number | null>(null)
   const intervalIdRef = useRef<NodeJS.Timeout | null>(null)
+  const wakeLockRef = useRef<any>(null)
+
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+        console.log('Screen Wake Lock is active')
+      }
+    } catch (err: any) {
+      console.error(`Wake Lock error: ${err.message}`)
+    }
+  }
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current !== null) {
+      await wakeLockRef.current.release()
+      wakeLockRef.current = null
+      console.log('Screen Wake Lock is released')
+    }
+  }
 
   useEffect(() => {
     // Fetch Runner Info
@@ -57,8 +77,22 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       if (intervalIdRef.current !== null) {
         clearInterval(intervalIdRef.current)
       }
+      releaseWakeLock()
     }
   }, [token])
+
+  // Re-request wake lock on visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isTracking) {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isTracking])
 
   const startTracking = () => {
     if (!navigator.geolocation) {
@@ -78,6 +112,9 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
         setStatusMsg('Gagal mengirim lokasi awal. Akan dicoba lagi otomatis...')
       }
     })
+    
+    // Cegah layar mati (Screen Wake Lock API)
+    requestWakeLock()
 
     // Setup interval 5 menit
     intervalIdRef.current = setInterval(() => {
@@ -111,6 +148,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
       clearInterval(intervalIdRef.current)
       intervalIdRef.current = null
     }
+    releaseWakeLock()
     setIsTracking(false)
     setStatusMsg('Tracking dihentikan.')
   }
@@ -379,7 +417,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
           
           <div className="text-center">
             <p className="text-xs text-slate-400">
-              Pastikan browser tidak dalam mode hemat baterai (battery saver) agar lokasi tetap dikirim.
+              Pastikan browser terbuka dan jangan kunci layar HP Anda agar lokasi tetap terkirim.
             </p>
           </div>
         </CardContent>

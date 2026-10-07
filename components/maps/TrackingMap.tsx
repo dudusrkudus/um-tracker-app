@@ -360,15 +360,14 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
   return (
     <>
       {mapError ? (
-        <div className="w-full h-[600px] flex items-center justify-center bg-gray-100 rounded-lg border border-dashed">
+        <div className="w-full h-[45vh] md:h-[600px] flex items-center justify-center bg-gray-100 rounded-lg border border-dashed">
           <div className="text-gray-500 flex flex-col items-center">
             <p>Unable to load the map.</p>
           </div>
         </div>
       ) : (
         <div
-          className="w-full rounded-lg overflow-hidden border shadow-sm"
-          style={{ height: 600 }}
+          className="w-full rounded-lg overflow-hidden border shadow-sm h-[45vh] md:h-[600px]"
         >
           {/* Inline size: maplibre-gl.css forces position:relative on this element */}
           <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />

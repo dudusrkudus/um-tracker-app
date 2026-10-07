@@ -4,10 +4,13 @@ import dynamic from 'next/dynamic'
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
+import { useRouter } from 'next/navigation'
+
 // Dynamically import TrackingMap with ssr: false so it never runs on the server
 const TrackingMap = dynamic(() => import('./TrackingMap'), { ssr: false })
 
 export default function TrackingMapClient({ teams: initialTeams, checkpoints, eventId }: any) {
+  const router = useRouter()
   const [teams, setTeams] = useState(initialTeams)
   const supabase = useMemo(() => createClient(), [])
 
@@ -29,23 +32,32 @@ export default function TrackingMapClient({ teams: initialTeams, checkpoints, ev
     const channel = supabase.channel(`map-realtime-${eventId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
         fetchTeams()
+        router.refresh()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'runners' }, () => {
         fetchTeams()
+        router.refresh()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'runner_locations' }, () => {
         fetchTeams()
+        router.refresh()
       })
       .subscribe()
 
-    // Polling interval fallback (setiap 4 detik) untuk memastikan data selalu segar
+    // Polling interval fallback (setiap 4 detik) untuk update data lokal map
     const interval = setInterval(fetchTeams, 4000)
+
+    // Interval untuk refresh layar utuh (Server Component Table) secara berkala agar 'freshness' ikut terupdate walau tidak ada pergerakan
+    const refreshInterval = setInterval(() => {
+      router.refresh()
+    }, 60000) // Setiap 1 menit
 
     return () => {
       clearInterval(interval)
+      clearInterval(refreshInterval)
       supabase.removeChannel(channel)
     }
-  }, [eventId, supabase])
+  }, [eventId, supabase, router])
 
   return <TrackingMap teams={teams} checkpoints={checkpoints} />
 }
