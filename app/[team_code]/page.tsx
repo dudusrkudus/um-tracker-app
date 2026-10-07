@@ -184,7 +184,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <IncidentListPublic incidents={incidents || []} />
+          <IncidentListPublic incidents={(incidents as any) || []} />
         </CardContent>
       </Card>
 
