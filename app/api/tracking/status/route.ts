@@ -29,7 +29,10 @@ export async function POST(req: Request) {
     // Update runner status
     const { error: updateError } = await supabase
       .from('runners')
-      .update({ status })
+      .update({ 
+        status, 
+        is_tracking_enabled: status === 'running' 
+      })
       .eq('id', runner.id)
 
     if (updateError) {
