@@ -19,6 +19,20 @@ Berikut adalah rangkuman pengerjaan dan fitur-fitur baru yang diselesaikan pada 
   - Menambahkan konfigurasi `export const dynamic = 'force-dynamic'` & `revalidate = 0` pada [app/[team_code]/page.tsx](file:///c:/Aplikasi/um-tracking-app/app/[team_code]/page.tsx) agar browser tidak menyajikan halaman *cache* lama ketika direfresh.
   - Menyempurnakan status pelari yang sedang aktif berlari agar menampilkan jam mulai, durasi berjalan real-time, dan kolom selesai bertanda `-`.
 
+## 4. Fitur Audit Jejak & Deteksi Integritas Lari (Anti-Kecurangan)
+- **Komponen Baru:** Menambahkan komponen interaktif [TeamTimeRecordsClient.tsx](file:///c:/Aplikasi/um-tracking-app/components/teams/TeamTimeRecordsClient.tsx) dengan kolom baru **Audit Integritas** pada tabel Catatan Waktu Pelari.
+- **Kalkulasi Matematis Jarak & Kecepatan (Haversine Formula):**
+  - Menghitung jarak tempuh antar titik GPS secara presisi (dalam meter/km).
+  - Menghitung selang waktu $(\Delta t)$ antar titik (~setiap 5 menit sekali).
+  - Mengkalkulasi kecepatan rata-rata ($\text{km/jam}$) dan *pace* lari ($\text{menit/km}$).
+- **Dialog Modal "Audit Jejak & Integritas Kecepatan":**
+  - **Ringkasan:** Menampilkan total titik GPS yang tersimpan, total jarak jejak kumulatif, rata-rata kecepatan, dan rata-rata *pace*.
+  - **Tabel Rincian Titik:** Memberikan kronologi detail per titik (Waktu WIB, selisih waktu interval, jarak lonjakan, kecepatan tempuh, akurasi GPS, serta tautan langsung untuk melihat koordinat di Google Maps).
+  - **Indikator Otomatis Status Integritas:**
+    - 🟢 **Normal (< 18 km/jam):** Lari atau jalan standar manusia di ultra marathon.
+    - 🟡 **Sprint/Cepat (18–25 km/jam):** Lari sangat kencang.
+    - 🔴 **⚠️ Mencurigakan / Dugaan Kendaraan (> 25 km/jam):** Sistem otomatis mendeteksi lonjakan jarak yang tidak realistis jika dilakukan dengan lari kaki (misal naik motor/kendaraan).
+
 ---
 
 *Semua pembaruan telah di-push ke branch main dan langsung ter-deploy otomatis di Vercel.*
