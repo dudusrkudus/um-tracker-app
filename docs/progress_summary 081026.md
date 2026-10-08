@@ -12,6 +12,13 @@ Berikut adalah rangkuman pengerjaan dan fitur-fitur baru yang diselesaikan pada 
   - Jika pelari berstatus sedang berlari namun belum ada koordinat GPS, sistem akan merespons dengan menampilkan pesan: **"Menunggu GPS..."**.
   - Jika pelari telah berstatus selesai namun riwayat pergerakannya kosong (karena simulasi manual), sistem menampilkannya sebagai **"Selesai (Tanpa Jejak)"** alih-alih mencoba menghitung angka kosong.
 
+## 3. Perbaikan Sinkronisasi Catatan Waktu (Bypass RLS & Force Dynamic)
+- **Akar Masalah:** GPS pelari di lapangan sebenarnya terkirim dan tersimpan di database dengan baik (11 titik koordinat tercatat), tetapi tabel *Catatan Waktu Pelari* pada halaman publik menggunakan *anonymous client* yang terblokir oleh *Row Level Security* (RLS) PostgreSQL untuk tabel `runner_locations`.
+- **Solusi:** 
+  - Mengubah pemanggilan query pada [TeamTimeRecords.tsx](file:///c:/Aplikasi/um-tracking-app/components/teams/TeamTimeRecords.tsx) menggunakan `createAdminClient()` di sisi server agar bebas dari batasan RLS publik.
+  - Menambahkan konfigurasi `export const dynamic = 'force-dynamic'` & `revalidate = 0` pada [app/[team_code]/page.tsx](file:///c:/Aplikasi/um-tracking-app/app/[team_code]/page.tsx) agar browser tidak menyajikan halaman *cache* lama ketika direfresh.
+  - Menyempurnakan status pelari yang sedang aktif berlari agar menampilkan jam mulai, durasi berjalan real-time, dan kolom selesai bertanda `-`.
+
 ---
 
-*Semua pembaruan pada halaman Dashboard Publik (TeamTimeRecords) telah diimplementasikan dengan aman dan tersedia untuk pengujian di server lokal maupun production setelah di-deploy.*
+*Semua pembaruan telah di-push ke branch main dan langsung ter-deploy otomatis di Vercel.*
