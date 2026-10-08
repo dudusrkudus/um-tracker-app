@@ -268,7 +268,12 @@ export default function TrackingMap({ teams, checkpoints }: TrackingMapProps) {
           runnerStatusLabel = 'Completed Leg'
         }
 
-        const code = team.team_code.replace(/[^0-9]/g, '').slice(-2)
+        // Attempt to split by '-' to get the last part (e.g., 'R4' from 'Run84Fun-R4')
+        const parts = team.team_code.split('-')
+        const lastPart = parts[parts.length - 1] || team.team_code
+        // Extract numbers from the last part, take up to 2 digits
+        const codeMatch = lastPart.match(/\d+/)
+        const code = codeMatch ? codeMatch[0].slice(-2) : team.team_code.slice(-2)
         el.textContent = code
         
         if (displayRunnerName) {
