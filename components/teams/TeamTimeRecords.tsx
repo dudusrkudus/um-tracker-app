@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -21,7 +21,7 @@ function formatDuration(ms: number) {
 }
 
 export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // 1. Fetch all runners for these teams
   const { data: runners } = await supabase
@@ -137,7 +137,8 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
           <TableBody>
             {activeRunners.map((r, i) => {
               const hasStarted = r.startTime != null
-              const isSameTime = r.startTime && r.endTime && r.startTime.getTime() === r.endTime.getTime()
+              const isFinished = ['completed_leg', 'finished'].includes(r.status)
+              const isRunning = r.status === 'running'
               const durationMs = (r.startTime && r.endTime) ? r.endTime.getTime() - r.startTime.getTime() : 0
               
               return (
@@ -152,16 +153,20 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
                       : <span className="text-gray-400 italic">Belum tercatat</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {!hasStarted || isSameTime
-                      ? '-' 
-                      : r.endTime!.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
+                    {isFinished && r.endTime && r.startTime && r.endTime.getTime() !== r.startTime.getTime()
+                      ? r.endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
+                      : '-'}
                   </TableCell>
                   <TableCell className="text-right font-medium whitespace-nowrap">
                     {!hasStarted
-                      ? (r.status === 'running' ? <span className="text-amber-600">Menunggu GPS...</span> : (['completed_leg', 'finished'].includes(r.status) ? 'Selesai (Tanpa Jejak)' : '-'))
-                      : (durationMs > 0 
-                          ? formatDuration(durationMs) 
-                          : (['completed_leg', 'finished'].includes(r.status) ? 'Selesai (Hanya 1 Jejak)' : 'Sedang Berlari'))}
+                      ? (isRunning ? <span className="text-amber-600 font-semibold animate-pulse">Menunggu GPS...</span> : (isFinished ? 'Selesai (Tanpa Jejak)' : '-'))
+                      : (isRunning
+                          ? (durationMs > 0 
+                              ? <span className="text-blue-600 font-semibold">{formatDuration(durationMs)} <span className="text-[10px] font-normal">(Berjalan)</span></span>
+                              : <span className="text-blue-600 font-semibold animate-pulse">Sedang Berlari</span>)
+                          : (durationMs > 0 
+                              ? formatDuration(durationMs) 
+                              : 'Selesai (Hanya 1 Jejak)'))}
                   </TableCell>
                 </TableRow>
               )

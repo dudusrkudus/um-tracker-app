@@ -15,6 +15,9 @@ import { notFound } from 'next/navigation'
 import IncidentListPublic from '@/components/incidents/IncidentListPublic'
 import TeamTimeRecords from '@/components/teams/TeamTimeRecords'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Helper to determine freshness
 function getFreshnessBadge(lastLocationAt: string | null, staleWarning: number, staleCritical: number) {
   if (!lastLocationAt) {
