@@ -84,7 +84,7 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
   const { data: incidents } = await supabase
     .from('incidents')
     .select(`
-      id, type, severity, status, description, reported_at,
+      id, type, severity, status, description, reported_at, photo_url, latitude, longitude,
       runner:runners!incidents_runner_id_fkey ( full_name ),
       teams ( team_code )
     `)

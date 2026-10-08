@@ -23,21 +23,13 @@ function formatDuration(ms: number) {
 export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }) {
   const supabase = await createClient()
 
-  // Fetch all checkpoint logs for the teams
-  const { data: logs } = await supabase
-    .from('checkpoint_logs')
-    .select(`
-      arrived_at,
-      departed_at,
-      runner_id,
-      team_id,
-      runners ( full_name, relay_order, team_id ),
-      teams ( team_code, team_name )
-    `)
+  // 1. Fetch all runners for these teams
+  const { data: runners } = await supabase
+    .from('runners')
+    .select('id, full_name, relay_order, team_id, status, teams(team_code, team_name)')
     .in('team_id', teamIds)
-    .order('arrived_at', { ascending: true })
 
-  if (!logs || logs.length === 0) {
+  if (!runners || runners.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -47,52 +39,74 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500">Belum ada catatan waktu.</p>
+          <p className="text-sm text-gray-500">Belum ada pelari di tim ini.</p>
         </CardContent>
       </Card>
     )
   }
 
-  // Group by runner
+  // 2. Fetch checkpoint logs
+  const { data: logs } = await supabase
+    .from('checkpoint_logs')
+    .select('runner_id, arrived_at')
+    .in('team_id', teamIds)
+
+  // 3. Fetch runner locations
+  const { data: locs } = await supabase
+    .from('runner_locations')
+    .select('runner_id, recorded_at')
+    .in('team_id', teamIds)
+
+  // 4. Calculate stats per runner
   const runnerStats: Record<string, {
+    id: string;
     runnerName: string;
     teamCode: string;
     relayOrder: number;
-    startTime: Date;
-    endTime: Date;
+    status: string;
+    startTime: Date | null;
+    endTime: Date | null;
   }> = {}
+
+  runners.forEach((r: any) => {
+    runnerStats[r.id] = {
+      id: r.id,
+      runnerName: r.full_name,
+      teamCode: r.teams?.team_code || '-',
+      relayOrder: r.relay_order,
+      status: r.status,
+      startTime: null,
+      endTime: null
+    }
+  })
 
   let teamStartTime: Date | null = null
   let teamEndTime: Date | null = null
 
-  logs.forEach((log: any) => {
-    if (!log.runners || !log.runner_id) return
+  const processTime = (runnerId: string, timeStr: string) => {
+    if (!runnerStats[runnerId]) return
+    const time = new Date(timeStr)
+    
+    // Update team boundaries
+    if (!teamStartTime || time < teamStartTime) teamStartTime = time
+    if (!teamEndTime || time > teamEndTime) teamEndTime = time
 
-    const arrivedAt = new Date(log.arrived_at)
-    // Team start/end
-    if (!teamStartTime || arrivedAt < teamStartTime) teamStartTime = arrivedAt
-    if (!teamEndTime || arrivedAt > teamEndTime) teamEndTime = arrivedAt
+    // Update runner boundaries
+    const rs = runnerStats[runnerId]
+    if (!rs.startTime || time < rs.startTime) rs.startTime = time
+    if (!rs.endTime || time > rs.endTime) rs.endTime = time
+  }
 
-    // Runner start/end
-    const rid = log.runner_id
-    if (!runnerStats[rid]) {
-      runnerStats[rid] = {
-        runnerName: log.runners.full_name,
-        teamCode: log.teams?.team_code || '-',
-        relayOrder: log.runners.relay_order,
-        startTime: arrivedAt,
-        endTime: arrivedAt
-      }
-    } else {
-      if (arrivedAt < runnerStats[rid].startTime) runnerStats[rid].startTime = arrivedAt
-      if (arrivedAt > runnerStats[rid].endTime) runnerStats[rid].endTime = arrivedAt
-    }
-  })
+  if (logs) logs.forEach((l: any) => processTime(l.runner_id, l.arrived_at))
+  if (locs) locs.forEach((l: any) => processTime(l.runner_id, l.recorded_at))
 
   const runnerList = Object.values(runnerStats).sort((a, b) => {
     if (a.teamCode !== b.teamCode) return a.teamCode.localeCompare(b.teamCode)
     return a.relayOrder - b.relayOrder
   })
+
+  // Filter out runners that haven't started at all AND don't have times
+  const activeRunners = runnerList.filter(r => r.startTime || r.status !== 'not_started')
 
   const teamTotalTimeMs = (teamEndTime && teamStartTime) ? (teamEndTime as Date).getTime() - (teamStartTime as Date).getTime() : 0
 
@@ -121,8 +135,11 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
             </TableRow>
           </TableHeader>
           <TableBody>
-            {runnerList.map((r, i) => {
-              const durationMs = r.endTime.getTime() - r.startTime.getTime()
+            {activeRunners.map((r, i) => {
+              const hasStarted = r.startTime != null
+              const isSameTime = r.startTime && r.endTime && r.startTime.getTime() === r.endTime.getTime()
+              const durationMs = (r.startTime && r.endTime) ? r.endTime.getTime() - r.startTime.getTime() : 0
+              
               return (
                 <TableRow key={i}>
                   <TableCell>
@@ -130,23 +147,29 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
                     <div className="text-[10px] text-gray-500">{r.teamCode} - Relay {r.relayOrder}</div>
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {r.startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
+                    {hasStarted 
+                      ? r.startTime!.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
+                      : <span className="text-gray-400 italic">Belum tercatat</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {r.endTime.getTime() === r.startTime.getTime() 
+                    {!hasStarted || isSameTime
                       ? '-' 
-                      : r.endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
+                      : r.endTime!.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
                   </TableCell>
                   <TableCell className="text-right font-medium whitespace-nowrap">
-                    {durationMs > 0 ? formatDuration(durationMs) : 'Sedang Berlari / Menunggu'}
+                    {!hasStarted
+                      ? (r.status === 'running' ? <span className="text-amber-600">Menunggu GPS...</span> : (['completed_leg', 'finished'].includes(r.status) ? 'Selesai (Tanpa Jejak)' : '-'))
+                      : (durationMs > 0 
+                          ? formatDuration(durationMs) 
+                          : (['completed_leg', 'finished'].includes(r.status) ? 'Selesai (Hanya 1 Jejak)' : 'Sedang Berlari'))}
                   </TableCell>
                 </TableRow>
               )
             })}
-            {runnerList.length === 0 && (
+            {activeRunners.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center text-sm text-gray-500 py-4">
-                  Belum ada data pelari yang tercatat.
+                  Belum ada data aktivitas pelari yang tercatat.
                 </TableCell>
               </TableRow>
             )}

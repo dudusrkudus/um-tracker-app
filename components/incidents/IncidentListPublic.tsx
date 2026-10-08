@@ -88,14 +88,24 @@ export default function IncidentListPublic({ incidents }: { incidents: Incident[
           
           {selectedIncident && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="block text-gray-500 text-xs">Pelari</span>
+                  <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">Pelari</span>
                   <span className="font-semibold">{selectedIncident.runner?.full_name || '-'}</span>
                 </div>
                 <div>
-                  <span className="block text-gray-500 text-xs">Tim</span>
+                  <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">Tim</span>
                   <span className="font-semibold">{(selectedIncident.teams as any)?.team_code || '-'}</span>
+                </div>
+                <div>
+                  <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">Tingkat</span>
+                  <Badge variant={selectedIncident.severity === 'emergency' ? 'destructive' : 'secondary'} className="text-[10px]">
+                    {selectedIncident.severity.toUpperCase()}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">Jenis</span>
+                  <span className="font-medium capitalize">{selectedIncident.type.replace('_', ' ')}</span>
                 </div>
               </div>
 
