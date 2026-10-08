@@ -201,8 +201,8 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
             resolve(false);
           }
         },
-        () => resolve(false),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        (err) => { console.warn('GPS Error:', err.message); resolve(false); },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
       );
     });
   };
@@ -284,7 +284,7 @@ export default function WebGpsTrackingPage(props: { params: Promise<{ token: str
         startTracking()
       }
 
-      alert(`Status berhasil diperbarui!`)
+      // alert removed to prevent JS block
       setStatusMsg('Status berhasil diperbarui.')
 
       // Redirect ke pelari selanjutnya jika ada
