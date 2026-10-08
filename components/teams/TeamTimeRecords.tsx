@@ -1,24 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import TeamTimeRecordsClient, { RunnerRecord } from './TeamTimeRecordsClient'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Timer, TimerReset } from 'lucide-react'
-
-// Helper to format duration in HH:mm:ss
-function formatDuration(ms: number) {
-  if (ms < 0) return '-'
-  const totalSeconds = Math.floor(ms / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-}
+import { Timer } from 'lucide-react'
 
 export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }) {
   const supabase = createAdminClient()
@@ -51,22 +34,15 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
     .select('runner_id, arrived_at')
     .in('team_id', teamIds)
 
-  // 3. Fetch runner locations
+  // 3. Fetch runner locations (with coordinates, speed, and accuracy)
   const { data: locs } = await supabase
     .from('runner_locations')
-    .select('runner_id, recorded_at')
+    .select('id, runner_id, recorded_at, latitude, longitude, accuracy_m, speed_kmh')
     .in('team_id', teamIds)
+    .order('recorded_at', { ascending: true })
 
   // 4. Calculate stats per runner
-  const runnerStats: Record<string, {
-    id: string;
-    runnerName: string;
-    teamCode: string;
-    relayOrder: number;
-    status: string;
-    startTime: Date | null;
-    endTime: Date | null;
-  }> = {}
+  const runnerStats: Record<string, RunnerRecord> = {}
 
   runners.forEach((r: any) => {
     runnerStats[r.id] = {
@@ -76,7 +52,8 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
       relayOrder: r.relay_order,
       status: r.status,
       startTime: null,
-      endTime: null
+      endTime: null,
+      locations: []
     }
   })
 
@@ -93,12 +70,26 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
 
     // Update runner boundaries
     const rs = runnerStats[runnerId]
-    if (!rs.startTime || time < rs.startTime) rs.startTime = time
-    if (!rs.endTime || time > rs.endTime) rs.endTime = time
+    if (!rs.startTime || time < new Date(rs.startTime)) rs.startTime = time.toISOString()
+    if (!rs.endTime || time > new Date(rs.endTime)) rs.endTime = time.toISOString()
   }
 
   if (logs) logs.forEach((l: any) => processTime(l.runner_id, l.arrived_at))
-  if (locs) locs.forEach((l: any) => processTime(l.runner_id, l.recorded_at))
+  if (locs) {
+    locs.forEach((l: any) => {
+      processTime(l.runner_id, l.recorded_at)
+      if (runnerStats[l.runner_id]) {
+        runnerStats[l.runner_id].locations.push({
+          id: l.id,
+          recorded_at: l.recorded_at,
+          latitude: l.latitude,
+          longitude: l.longitude,
+          accuracy_m: l.accuracy_m,
+          speed_kmh: l.speed_kmh
+        })
+      }
+    })
+  }
 
   const runnerList = Object.values(runnerStats).sort((a, b) => {
     if (a.teamCode !== b.teamCode) return a.teamCode.localeCompare(b.teamCode)
@@ -111,76 +102,9 @@ export default async function TeamTimeRecords({ teamIds }: { teamIds: string[] }
   const teamTotalTimeMs = (teamEndTime && teamStartTime) ? (teamEndTime as Date).getTime() - (teamStartTime as Date).getTime() : 0
 
   return (
-    <Card className="border-blue-200">
-      <CardHeader className="bg-blue-50/50">
-        <CardTitle className="text-blue-800 flex items-center justify-between">
-          <div className="flex items-center">
-            <Timer className="w-5 h-5 mr-2" />
-            Catatan Waktu Pelari
-          </div>
-          <div className="flex items-center text-sm font-bold bg-white px-3 py-1 rounded-full border border-blue-200 text-blue-700 shadow-sm">
-            <TimerReset className="w-4 h-4 mr-2" />
-            Total Waktu Tim: {teamTotalTimeMs > 0 ? formatDuration(teamTotalTimeMs) : '-'}
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pelari</TableHead>
-              <TableHead>Mulai</TableHead>
-              <TableHead>Selesai</TableHead>
-              <TableHead className="text-right">Durasi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {activeRunners.map((r, i) => {
-              const hasStarted = r.startTime != null
-              const isFinished = ['completed_leg', 'finished'].includes(r.status)
-              const isRunning = r.status === 'running'
-              const durationMs = (r.startTime && r.endTime) ? r.endTime.getTime() - r.startTime.getTime() : 0
-              
-              return (
-                <TableRow key={i}>
-                  <TableCell>
-                    <div className="font-bold text-sm">{r.runnerName}</div>
-                    <div className="text-[10px] text-gray-500">{r.teamCode} - Relay {r.relayOrder}</div>
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">
-                    {hasStarted 
-                      ? r.startTime!.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
-                      : <span className="text-gray-400 italic">Belum tercatat</span>}
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">
-                    {isFinished && r.endTime && r.startTime && r.endTime.getTime() !== r.startTime.getTime()
-                      ? r.endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-right font-medium whitespace-nowrap">
-                    {!hasStarted
-                      ? (isRunning ? <span className="text-amber-600 font-semibold animate-pulse">Menunggu GPS...</span> : (isFinished ? 'Selesai (Tanpa Jejak)' : '-'))
-                      : (isRunning
-                          ? (durationMs > 0 
-                              ? <span className="text-blue-600 font-semibold">{formatDuration(durationMs)} <span className="text-[10px] font-normal">(Berjalan)</span></span>
-                              : <span className="text-blue-600 font-semibold animate-pulse">Sedang Berlari</span>)
-                          : (durationMs > 0 
-                              ? formatDuration(durationMs) 
-                              : 'Selesai (Hanya 1 Jejak)'))}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-            {activeRunners.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-sm text-gray-500 py-4">
-                  Belum ada data aktivitas pelari yang tercatat.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <TeamTimeRecordsClient 
+      runners={activeRunners}
+      teamTotalTimeMs={teamTotalTimeMs}
+    />
   )
 }
