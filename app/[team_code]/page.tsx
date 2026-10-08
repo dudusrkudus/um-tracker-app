@@ -13,6 +13,7 @@ import {
 import { Activity, AlertTriangle, Clock, MapPin, TriangleAlert } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import IncidentListPublic from '@/components/incidents/IncidentListPublic'
+import TeamTimeRecords from '@/components/teams/TeamTimeRecords'
 
 // Helper to determine freshness
 function getFreshnessBadge(lastLocationAt: string | null, staleWarning: number, staleCritical: number) {
@@ -31,6 +32,13 @@ function getFreshnessBadge(lastLocationAt: string | null, staleWarning: number, 
 
 export default async function TeamPublicPage({ params }: { params: Promise<{ team_code: string }> }) {
   const resolvedParams = await params;
+  
+  // Guard against internal routes hitting this dynamic segment
+  const reservedPaths = ['login', 'dashboard', 'api', 'admin', 'runners', 'teams', 'incidents', 'users', 'tracking'];
+  if (reservedPaths.includes(resolvedParams.team_code.toLowerCase())) {
+    notFound();
+  }
+
   const supabase = await createClient()
 
   // Get active event
@@ -174,6 +182,9 @@ export default async function TeamPublicPage({ params }: { params: Promise<{ tea
           </Table>
         </CardContent>
       </Card>
+
+      {/* Team Time Records Section */}
+      <TeamTimeRecords teamIds={teamIds} />
 
       {/* Incidents / Laporan Section */}
       <Card className="border-red-200">
